@@ -493,7 +493,7 @@ c      chunit = (7.17775e-12_DKIND)/(2._DKIND*uvel*uvel*mh)   ! 4.5 eV per H2 fo
      &               k31shield, h2dust, ncrn, ncrd1, ncrd2, 
      &               t1, t2, tdef, logtem, indixe, 
      &               dom, coolunit, tbase1, xbase1, dx_cgs, c_ljeans,
-     &               iradtrans, kdissH2I, xH2shield, itmask)
+     &               iradtrans, kdissH2I, xH2shield, itmask, z_solar)
 
 !           Compute dedot and HIdot, the rates of change of de and HI
 !             (should add itmask to this call)
@@ -1033,7 +1033,7 @@ c -------------------------------------------------------------------
      &                h2dust, ncrn, ncrd1, ncrd2,
      &                t1, t2, tdef, logtem, indixe, 
      &                dom, coolunit, tbase1, xbase1, dx_cgs, c_ljeans,
-     &                iradtrans, kdissH2I, xH2shield, itmask)
+     &                iradtrans, kdissH2I, xH2shield, itmask, z_solar)
 ! -------------------------------------------------------------------
 
       implicit NONE
@@ -1046,7 +1046,7 @@ c -------------------------------------------------------------------
      &        idust, ndratec, iH2shield, iradshield, iradtrans
       real*8 temstart, temend, tgas1d(in), mmw(in), dom,
      &       dtemstart, dtemend
-      real*8 coolunit, tbase1, xbase1, dx_cgs, c_ljeans
+      real*8 coolunit, tbase1, xbase1, dx_cgs, c_ljeans, z_solar
       logical itmask(in)
 
 !     Chemistry rates as a function of temperature
@@ -1120,7 +1120,7 @@ c -------------------------------------------------------------------
      &       f_shield, b_doppler, l_H2shield
       real*8 k13_CID, k13_DT
 
-      real*8 nSSh, nratio
+      real*8 nSSh, nratio, dust_to_gas_ratio
 
 !     Set log values of start and end of lookup tables
 
