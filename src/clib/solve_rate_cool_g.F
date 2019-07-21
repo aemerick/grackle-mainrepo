@@ -1295,7 +1295,15 @@ c -------------------------------------------------------------------
 
 !                 Multiply by metallicity
 
-                  h2dust(i) = h2dust(i) * metallicity(i)
+                  if (idust == 1) then
+                    h2dust(i) = h2dust(i) * metallicity(i)
+                  else if (idust == 2) then
+!                 use dust model for better scaling with low metallicity
+                    call normalized_dust_to_gas_ratio(
+     &                                      metallicity(i)*z_solar,
+     &                                      dust_to_gas_ratio)
+                    h2dust(i) = h2dust(i) * dust_to_gas_ratio
+                  endif
 
                endif
             endif
@@ -2429,3 +2437,58 @@ c
 
       return
       end
+
+
+
+! ------------------------------------------------------------------
+!   This routine uses the broken power law fit from 
+!   Remy-Ruyer et. al. 2014 to compute the dust to gas ratio,
+!   normalized to the MW (i.e. solar metallicity) value. This scaling
+!   is given a a function of 12 + log(O/H), but this method 
+!   assumes scaling in metallicity. Note the different definition of
+!   solar metallicity used in that work and this function.
+!
+!
+!   INPUTS -
+!     Z    - metallicity, given as metal fraction. This 
+!            should NOT be in solar units.
+!   OUTPUTS -
+!     D    - dust to gas ratio normalized to solar value
+!
+      subroutine normalized_dust_to_gas_ratio(Z, D)
+! -------------------------------------------------------------------
+
+      implicit NONE
+#include "grackle_fortran_types.def"
+
+!     Arguments
+      real*8 :: Z, D
+
+!     locals
+
+      real*8 x_t, local_zsolar, Dmw
+
+      parameter (x_t = -0.73)
+      parameter (local_zsolar = 0.014)
+      parameter (Dmw = 6.616595E-3)
+
+      real*8  g_to_d, x
+
+      x = log10( Z / local_zsolar)
+
+      if ( x <= x_t) then
+        g_to_d = 0.68 - 3.08 * x
+      else
+        g_to_d = 2.21 - 1.00 * x
+      endif
+
+      D = 1.0 / (10.0**(g_to_d))
+
+      D = D / Dmw
+
+      return
+      end
+
+
+
+
