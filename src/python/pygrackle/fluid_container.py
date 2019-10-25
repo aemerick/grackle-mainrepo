@@ -20,6 +20,9 @@ from pygrackle.grackle_wrapper import \
     calculate_temperature, \
     solve_chemistry
 
+from pygrackle.utilities.misc import \
+    issue_deprecation_warning
+
 from pygrackle.utilities.physical_constants import \
     mass_hydrogen_cgs
 
@@ -27,7 +30,7 @@ _base_fluids = ["density", "metal"]
 _nd_fields   = ["energy",
                 "x-velocity", "y-velocity", "z-velocity",
                 "temperature", "pressure",
-                "gamma", "cooling_time"]
+                "gamma", "cooling_time", "mu", "nH"]
 
 _fluid_names = {}
 _fluid_names[0] = _base_fluids
@@ -75,21 +78,11 @@ class FluidContainer(dict):
 
     @property
     def cooling_units(self):
-        tbase1 = self.chemistry_data.time_units
-        if self.chemistry_data.comoving_coordinates:
-            xbase1 = self.chemistry_data.length_units / \
-                (self.chemistry_data.a_value * self.chemistry_data.a_units)
-            dbase1 = self.chemistry_data.density_units * \
-                (self.chemistry_data.a_value * self.chemistry_data.a_units)**3
-        else:
-            xbase1 = self.chemistry_data.length_units / \
-                self.chemistry_data.a_units
-            dbase1 = self.chemistry_data.density_units * \
-                self.chemistry_data.a_units**3
-
-        coolunit = (self.chemistry_data.a_units**5 * xbase1**2 *
-                    mass_hydrogen_cgs**2) / (tbase1**3 * dbase1)
-        return coolunit
+        warn = 'The cooling_units attribute is deprecated.\n' + \
+          'For example, instead of fc.cooling_units, ' + \
+          'use fc.chemistry_data.cooling_units.'
+        issue_deprecation_warning(warn)
+        return self.chemistry_data.cooling_units
 
     @property
     def density_fields(self):
@@ -98,23 +91,25 @@ class FluidContainer(dict):
     def calculate_hydrogen_number_density(self):
         my_chemistry = self.chemistry_data
         if my_chemistry.primordial_chemistry == 0:
-            return my_chemistry.HydrogenFractionByMass * \
+            self["nH"] = my_chemistry.HydrogenFractionByMass * \
               self["density"] * my_chemistry.density_units / mass_hydrogen_cgs
+            return
         nH = self["HI"] + self["HII"]
         if my_chemistry.primordial_chemistry > 1:
             nH += self["HM"] + self["H2I"] + self["H2II"]
         if my_chemistry.primordial_chemistry > 2:
             nH += self["HDI"] / 2.
-        return nH * my_chemistry.density_units / mass_hydrogen_cgs
+        self["nH"] = nH * my_chemistry.density_units / mass_hydrogen_cgs
 
     def calculate_mean_molecular_weight(self):
         my_chemistry = self.chemistry_data
         if (self["energy"] == 0).all():
-            return np.ones(self["energy"].size)
+            self["mu"] = np.ones(self["energy"].size)
+            return
         self.calculate_temperature()
-        return (self["temperature"] / \
-                (self["energy"] * (my_chemistry.Gamma - 1.) *
-                 self.chemistry_data.temperature_units))
+        self["mu"] = self["temperature"] / \
+          (self["energy"] * (my_chemistry.Gamma - 1.) *
+           self.chemistry_data.temperature_units)
 
     def calculate_cooling_time(self):
         calculate_cooling_time(self)
@@ -164,7 +159,7 @@ _grackle_to_yt = {
     'energy': ('gas', 'thermal_energy'),
 }
 
-_skip = ("pressure", "temperature", "cooling_time", "gamma")
+_skip = ("pressure", "temperature", "cooling_time", "gamma", "mu", "nH")
 
 _yt_to_grackle = dict((b, a) for a, b in _grackle_to_yt.items())
 
