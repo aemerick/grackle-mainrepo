@@ -29,7 +29,7 @@ commands:
     parameters:
       omp:
         type: string
-        default: false
+        default: 'false'
     steps:
       - run: |
           source $HOME/venv/bin/activate
@@ -74,7 +74,7 @@ commands:
     parameters:
       omp:
         type: string
-        default: false
+        default: 'false'
     steps:
       - run: |
           source $BASH_ENV
@@ -83,6 +83,9 @@ commands:
           if [ << parameters.omp >> == 'true' ]; then
             export OMP_NUM_THREADS=4
             py.test python/tests/test_code_examples.py
+            cd example
+            make cxx_omp_example
+            ./cxx_omp_example
           else
             py.test python/tests
           fi
@@ -176,6 +179,23 @@ workflows:
            name: "Python 3.6 tests"
            tag: "3.6.8"
 
+       - test-suite:
+           name: "Python 3.7 tests"
+           tag: "3.7.2"
+
+       - docs-build:
+           name: "Docs build"
+           tag: "3.7.2"
+
+   weekly:
+     triggers:
+       - schedule:
+           cron: "0 0 * * 1"
+           filters:
+            branches:
+              only:
+                - master
+     jobs:
        - test-suite:
            name: "Python 3.7 tests"
            tag: "3.7.2"
