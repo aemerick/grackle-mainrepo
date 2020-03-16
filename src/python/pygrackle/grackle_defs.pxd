@@ -39,6 +39,7 @@ cdef extern from "grackle_chemistry_data.h":
         double DustTemperatureEnd
         int Compton_xray_heating
         int LWbackground_sawtooth_suppression
+        int LWbackground_model
         double LWbackground_intensity
         double UVbackground_redshift_on
         double UVbackground_redshift_off

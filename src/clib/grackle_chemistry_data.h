@@ -107,6 +107,7 @@ typedef struct
   /* additional radiation background parameters */
   int Compton_xray_heating;
   int LWbackground_sawtooth_suppression;
+  int LWbackground_model;
   double LWbackground_intensity;   // [in units of 10^21 erg/s/cm^2/Hz/sr]
   double UVbackground_redshift_on;
   double UVbackground_redshift_off;

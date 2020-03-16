@@ -250,6 +250,18 @@ For all on/off integer flags, 0 is off and 1 is on.
    `Madau & Efstathiou (1999)
    <http://adsabs.harvard.edu/abs/1999ApJ...517L...9M>`_.  Default: 0.
 
+.. c.var:: int LWbackground_model
+
+   Switch between different models for the LW background. By default,
+   LW background from the UV background table (if used) is adopted, but
+   this can be overridden by setting LWbackground_intensity (below)
+   or by setting LWbackground_model > 0. Default : 0.
+
+     - 0 : Constant LW background (if LWbackground_intensity > 0)
+     - 1 : Redshift dependent LW background from `Wise et. al. (2012)
+           <http://adsabs.harvard.edu/abs/2012MNRAS.427..311W/abstract>`_
+           (Eq. 16).
+   
 .. c:var:: float LWbackground_intensity
 
    Intensity of a constant Lyman-Werner H\ :sub:`2` photo-dissociating

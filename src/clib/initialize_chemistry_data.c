@@ -461,6 +461,8 @@ void show_parameters(FILE *fp, chemistry_data *my_chemistry)
           my_chemistry->Compton_xray_heating);
   fprintf(fp, "LWbackground_sawtooth_suppression = %d\n",
           my_chemistry->LWbackground_sawtooth_suppression);
+  fprintf(fp, "LWbackground_model = %d\n",
+          my_chemistry->LWbackground_model);
   fprintf(fp, "LWbackground_intensity            = %g\n",
           my_chemistry->LWbackground_intensity);
   fprintf(fp, "UVbackground_redshift_on          = %g\n",

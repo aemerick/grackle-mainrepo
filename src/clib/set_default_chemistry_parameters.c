@@ -73,6 +73,7 @@ chemistry_data _set_default_chemistry_parameters(void)
   my_chemistry.Compton_xray_heating   = 0;
 
   my_chemistry.LWbackground_intensity = 0.0;   // [in units of 10^21 erg/s/cm^2/Hz/sr]
+  my_chemistry.LWbackground_model     = 0;
   my_chemistry.LWbackground_sawtooth_suppression = 0;
 
   my_chemistry.HydrogenFractionByMass       = 0.76;

@@ -239,6 +239,12 @@ cdef class chemistry_data:
         def __set__(self, val):
             self.data.Compton_xray_heating = val
 
+    property LWbackground_model:
+        def __get__(self):
+            return self.data.LWbackground_model
+        def __set__(self, val):
+            self.data.LWbackground_model = val
+
     property LWbackground_sawtooth_suppression:
         def __get__(self):
             return self.data.LWbackground_sawtooth_suppression
