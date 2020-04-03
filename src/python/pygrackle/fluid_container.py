@@ -18,16 +18,20 @@ from pygrackle.grackle_wrapper import \
     calculate_gamma, \
     calculate_pressure, \
     calculate_temperature, \
+    calculate_dust_temperature, \
     solve_chemistry
+
+from pygrackle.utilities.misc import \
+    issue_deprecation_warning
 
 from pygrackle.utilities.physical_constants import \
     mass_hydrogen_cgs
 
-_base_fluids = ["density", "metal"]
+_base_fluids = ["density", "metal", "dust"]
 _nd_fields   = ["energy",
                 "x-velocity", "y-velocity", "z-velocity",
-                "temperature", "pressure",
-                "gamma", "cooling_time"]
+                "temperature", "dust_temperature", "pressure",
+                "gamma", "cooling_time", "mu", "nH"]
 
 _fluid_names = {}
 _fluid_names[0] = _base_fluids
@@ -75,21 +79,11 @@ class FluidContainer(dict):
 
     @property
     def cooling_units(self):
-        tbase1 = self.chemistry_data.time_units
-        if self.chemistry_data.comoving_coordinates:
-            xbase1 = self.chemistry_data.length_units / \
-                (self.chemistry_data.a_value * self.chemistry_data.a_units)
-            dbase1 = self.chemistry_data.density_units * \
-                (self.chemistry_data.a_value * self.chemistry_data.a_units)**3
-        else:
-            xbase1 = self.chemistry_data.length_units / \
-                self.chemistry_data.a_units
-            dbase1 = self.chemistry_data.density_units * \
-                self.chemistry_data.a_units**3
-
-        coolunit = (self.chemistry_data.a_units**5 * xbase1**2 *
-                    mass_hydrogen_cgs**2) / (tbase1**3 * dbase1)
-        return coolunit
+        warn = 'The cooling_units attribute is deprecated.\n' + \
+          'For example, instead of fc.cooling_units, ' + \
+          'use fc.chemistry_data.cooling_units.'
+        issue_deprecation_warning(warn)
+        return self.chemistry_data.cooling_units
 
     @property
     def density_fields(self):
@@ -98,24 +92,53 @@ class FluidContainer(dict):
     def calculate_hydrogen_number_density(self):
         my_chemistry = self.chemistry_data
         if my_chemistry.primordial_chemistry == 0:
-            return my_chemistry.HydrogenFractionByMass * \
+            self["nH"] = my_chemistry.HydrogenFractionByMass * \
               self["density"] * my_chemistry.density_units / mass_hydrogen_cgs
+            return
         nH = self["HI"] + self["HII"]
         if my_chemistry.primordial_chemistry > 1:
             nH += self["HM"] + self["H2I"] + self["H2II"]
         if my_chemistry.primordial_chemistry > 2:
             nH += self["HDI"] / 2.
-        return nH * my_chemistry.density_units / mass_hydrogen_cgs
+        self["nH"] = nH * my_chemistry.density_units / mass_hydrogen_cgs
 
     def calculate_mean_molecular_weight(self):
         my_chemistry = self.chemistry_data
-        if (self["energy"] == 0).all():
-            return np.ones(self["energy"].size)
-        self.calculate_temperature()
-        return (self["temperature"] / \
-                (self["energy"] * (my_chemistry.Gamma - 1.) *
-                 self.chemistry_data.temperature_units))
 
+        # If energy has been set, calculate mu from the energy
+        if not (self["energy"] == 0).all():
+            self.calculate_temperature()
+            self["mu"] = self["temperature"] / \
+                (self["energy"] * (my_chemistry.Gamma - 1.) *
+                 self.chemistry_data.temperature_units)
+            return
+    
+            
+        # Default to mu=1
+        self["mu"] = np.ones(self["energy"].size)
+
+        if self.chemistry_data.primordial_chemistry == 0:
+            return # mu=1
+        
+        # Check that (chemistry) density fields have been set.
+        # Allow metals to be 0
+        for field in self.density_fields:
+            if field == 'metal':
+                continue
+            if (self[field] == 0).all():
+                return
+
+        # Calculate mu from the species densities; ignore deuterium
+        nden = self["metal"]/16.
+        nden += self["HI"]+self["HII"]+self["de"] + \
+            (self["HeI"]+self["HeII"]+self["HeIII"])/4.
+            
+        if self.chemistry_data.primordial_chemistry > 1:
+            nden += self["HM"]+(self["H2I"]+self["H2II"])/2.
+            
+        self["mu"] = self["density"]/nden
+
+        
     def calculate_cooling_time(self):
         calculate_cooling_time(self)
 
@@ -127,6 +150,9 @@ class FluidContainer(dict):
 
     def calculate_temperature(self):
         calculate_temperature(self)
+
+    def calculate_dust_temperature(self):
+        calculate_dust_temperature(self)
 
     def solve_chemistry(self, dt):
         solve_chemistry(self, dt)
@@ -158,27 +184,27 @@ _grackle_to_yt = {
     'HDI': ('gas', 'HD_p0_density'),
     'de': ('gas', 'El_density'),
     'metal': ('gas', 'metal_density'),
+    'dust': ('gas', 'dust_density'),
     'x-velocity': ('gas', 'velocity_x'),
     'y-velocity': ('gas', 'velocity_y'),
     'z-velocity': ('gas', 'velocity_z'),
     'energy': ('gas', 'thermal_energy'),
 }
 
-_skip = ("pressure", "temperature", "cooling_time", "gamma")
+_skip = ("pressure", "temperature", "dust_temperature", "dust",
+         "cooling_time", "gamma", "mu", "nH")
 
 _yt_to_grackle = dict((b, a) for a, b in _grackle_to_yt.items())
 
+_have_units = ["density", "energy", "pressure", "temperature", "velocity"]
+
 def _units(chemistry_data, fname):
-    if fname[1].endswith("density"):
-        return chemistry_data.density_units
-    elif fname[1].endswith("energy"):
-        energy_units = (chemistry_data.velocity_units)**2.0
-        return energy_units
-    elif fname[1].startswith("velocity"):
-        v_units = (chemistry_data.velocity_units)
-        return v_units
-    else:
-        raise FieldNotFound(fname)
+    for f in _have_units:
+        if f in fname[1]:
+            my_units = "%s_units" % f
+            units = getattr(chemistry_data, my_units)
+            return units
+    raise FieldNotFound(fname)
 
 def _needed_fields(fc):
     cd = fc.chemistry_data

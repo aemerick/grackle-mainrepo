@@ -3,14 +3,14 @@ c=======================================================================
 c//////////////////////  SUBROUTINE CALC_RATES_G  \\\\\\\\\\\\\\\\\\\\\\\
 c
       subroutine calc_rates_g(
-     &             ispecies,
+     &             ispecies, igammah, idust, idustall,
      &             nratec, aye, temstart, temend,
      &             casebrates, threebody,
      &             uxyz, uaye, urho, utim,
      &             ceHIa, ceHeIa, ceHeIIa, ciHIa, ciHeIa, 
      &             ciHeISa, ciHeIIa, reHIIa, reHeII1a, 
      &             reHeII2a, reHeIIIa, brema, compa, 
-     &             gammahacgs, gammaha,
+     &             gammahacgs, gammaha, regra, gamma_isrfa,
      &             hyd01ka, h2k01a, vibha, rotha, rotla, 
      &             gpldl, gphdl, hdltea, hdlowa, ciecoa,
      &             gaHIa, gaH2a, gaHea, gaHpa, gaela, h2ltea, gasgra,
@@ -75,7 +75,8 @@ c    casebrates = use case-B recombination rates for k2, k4 and k6
 c
 c  RATES:
 c
-c  Reaction rate numbering agrees with Abel et al. (1997).
+c     The reaction are described in Abel et al. (1997).
+c     WARNING: not all the numbering are consistent with this paper.
 c
 c ------- 1:    HI    + e   -> HII   + 2e
 c ------- 2:    HII   + e   -> H     + p
@@ -131,7 +132,8 @@ c
 c
 c  Arguments
 c
-      integer ispecies, nratec, casebrates, threebody, ndratec
+      integer ispecies, igammah, idust, idustall, nratec, casebrates,
+     &        threebody, ndratec
       real*8  aye, temstart, temend, dtemstart, dtemend
       real*8  uxyz, uaye, urho, utim
       real*8  ceHIa(nratec), ceHeIa(nratec), ceHeIIa(nratec),
@@ -143,8 +145,8 @@ c
      &        gphdl(nratec), hdltea(nratec), hdlowa(nratec),
      &        gaHIa(nratec), gaH2a(nratec), gaHea(nratec), 
      &        gaHpa(nratec), gaela(nratec), h2ltea(nratec),
-     &        gasgra(nratec), ciecoa(nratec),
-     &        compa, gammaha, gammahacgs,
+     &        gasgra(nratec), ciecoa(nratec), regra(nratec),
+     &        gamma_isrfa, compa, gammaha, gammahacgs,
      &        k1a (nratec), k2a (nratec), k3a (nratec), k4a (nratec), 
      &        k5a (nratec), k6a (nratec), k7a (nratec), k8a (nratec), 
      &        k9a (nratec), k10a(nratec), k11a(nratec), k12a(nratec), 
@@ -196,13 +198,18 @@ c
       real*8 logttt, ttt, tev, logtev, 
      &     xx, dum, tbase1, xbase1, kunit, coolunit,
      &     dbase1, dlogtem, kunit_3bdy, cierate,
-     &     grain_coef, d_ttt, d_logttt, d_dlogtem,
+     &     grain_coef, fgr, d_ttt, d_logttt, d_dlogtem,
      &     ttt2, d_ttt2, tk9, lambdaHI, lambdaHeII,
-     &     lambdaHeIII
+     &     lambdaHeIII, grbeta
       real*8 tm, HDLR, HDLV, lt, t3, lt3
+      logical anydust
 c
 c\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\/////////////////////////////////////
 c=======================================================================
+c     Set flag for dust-related options
+c
+      anydust = (idust .gt. 0) .or. (idustall .gt. 0)
+c
 c
 c  Get conversion units
 c
@@ -261,7 +268,9 @@ c  3) the units for the radiative rate coefficients is just 1/[time]
 c
 c  4) Energy transfer from gas to dust grains, following equation 2.15
 c     of Hollenbach & McKee (1989).
-      grain_coef = 1.2d-31 * 1.0d3**(-0.5d0)
+c     Normalize to the HM89 dust to gas ratio.
+      fgr = 0.009387d0
+      grain_coef = 1.2d-31 * 1.0d3**(-0.5d0) / fgr
 c
 c  Compute log spacing in temperature
 c
@@ -355,7 +364,6 @@ c
         gaHpa(i)    = tiny
         gaela(i)    = tiny
         h2ltea(i)   = tiny
-        gasgra(i)   = tiny
       enddo
 c
 c  Fill in tables over the range temstart to temend
@@ -546,24 +554,27 @@ c
            d_logttt = log(dtemstart) + real(j-1, 8)*d_dlogtem
            d_ttt = exp(d_logttt)
            d_ttt2 = d_ttt / 1.0d2
+#define USE_OMUKAI_2000
+#ifdef  USE_OMUKAI_2000
 c
 c     k23 from Omukai (2000).
 c
-           h2dusta(i,j) = 6.0d-17 * (ttt / 300.0d0)**(0.5d0) *
+           h2dusta(i,j) = 6.0d-17 / fgr * (ttt / 300.0d0)**(0.5d0) *
      &          ((1.0d0 + exp(7.5d2 * ((1.0d0 / 75.0d0) - 
      &                                (1.0d0 / d_ttt))))**(-1.0d0)) *
      &          ((1.0d0 + (4.0d-2 * (ttt + d_ttt)**(0.5d0)) + 
      &           (2.0d-3 * ttt) + 
      &           (8.0d-6 * ttt**(2.0d0)))**(-1.0d0)) / kunit
+#else
 c
 c     Equation 3.8 from Hollenbach & McKee (1979).
 c
-c           h2dusta(i,j) = 3.0d-17 * ttt2**0.5d0 /
-c     &          (1.0d0 + 
-c     &           (0.4d0 * (ttt2 + d_ttt2)**0.5d0) +
-c     &           (0.2d0 * ttt2) +
-c     &           (8.0d-2 * ttt2**2.0d0)) / kunit
-c
+           h2dusta(i,j) = 3.0d-17 / fgr * ttt2**0.5d0 /
+     &          (1.0d0 +
+     &          (0.4d0 * (ttt2 + d_ttt2)**0.5d0) +
+     &          (0.2d0 * ttt2) +
+     &          (8.0d-2 * ttt2**2.0d0)) / kunit
+#endif /* USE_OMUKAI_2000 */
         enddo
 c
 c       H2 formation heating terms from Equation 23 of Omukai (2000).
@@ -751,6 +762,30 @@ c
       tm  = min(tm, 1.d4)
       lt3 = log10(tm / 1.d3)  
 
+#define USE_LIQUE2015
+#ifdef USE_LIQUE2015
+c
+c     Revised low density H2 cooling rate due to H collisions, based on
+c     Lique (2015, MNRAS, 453, 810). This fit is accurate to within ~5% over the temperature
+c     range 100 < T < 5000 K. Lique (2015) doesn't present data above 5000 K, so at higher
+c     temperatures the rate has been calculated assuming that the de-excitation rate
+c     coefficients have the same values that they have at 5000 K. Lique also doesn't give
+c     rates for T < 100 K, but since we don't expect H2 cooling to be important there, it
+c     should be OK to just set the rate to zero.
+c
+      if (tm .lt. 1e2) then
+         gaHIa(i) = 0.0
+      else
+         gaHIa(i) = 10.d0**(-24.07950609
+     &          + 4.54182810 * lt3
+     &          - 2.40206896 * lt3**2
+     &          - 0.75355292 * lt3**3
+     &          + 4.69258178 * lt3**4
+     &          - 2.79573574 * lt3**5
+     &          - 3.14766075 * lt3**6
+     &          + 2.50751333 * lt3**7) / coolunit
+      endif
+#else
       if (tm .lt. 1e2) then
         gaHIa(i) = 10.d0**(-16.818342d0
      &         + 37.383713d0 * lt3
@@ -773,6 +808,7 @@ c
      &         - 5.5108047d0 * lt3**4
      &         + 1.5538288d0 * lt3**5) / coolunit
       endif
+#endif
 c
 c Excitation by H2
 c
@@ -897,14 +933,46 @@ c
       ciecoa(i) = cierate * (mh/2.0d0) / coolunit
 c      write(6,*), "thin: ", ttt, cierate * 1e14*mh*2
 c
-c     h) Energy transfer from gas to dust grains, following 
-c        equation 2.15 of Hollenbach & McKee (1989)
-      gasgra(i) = grain_coef * (ttt**0.5d0) * 
-     &     (1.0d0 - (0.8d0 * exp(-75.0d0 / ttt))) / coolunit
-c
       enddo
 
+c     end if (ispecies .gt. 0) then
       endif
+c
+c     Dust-related processes
+c
+      if (anydust) then
+c
+c     Compute log spacing in temperature
+c
+         ttt    = temstart
+         logttt = log(ttt)
+         dlogtem= (log(temend) - log(temstart))/real(nratec-1, 8)
+
+         do i = 1, nratec
+c
+c     Compute temperature of this bin (in eV)
+c
+            logttt = log(temstart) + real(i-1, 8)*dlogtem
+            ttt = exp(logttt)
+c
+c     Energy transfer from gas to dust grains, following
+c     equation 2.15 of Hollenbach & McKee (1989)
+c
+            gasgra(i) = grain_coef * (ttt**0.5d0) *
+     &           (1.0d0 - (0.8d0 * exp(-75.0d0 / ttt))) / coolunit
+c
+c     Electron recombination onto dust grains
+c     Eqn. 9 from Wolfire et al. (1995)
+c
+            grbeta = 0.74_DKIND / ttt**0.068_DKIND
+            regra(i) = 4.65d-30 *
+     &           ttt**(0.94_DKIND + 0.5_DKIND * grbeta) /
+     &           coolunit
+
+         enddo
+
+      endif
+
 c
 c     i) Compton cooling (Peebles 1971)
 c
@@ -913,8 +981,19 @@ c
 c     j) Photoelectric heating by UV-irradiated dust (Wolfire 1995)
 c        Default is 8.5e-26 for epsilon=0.05, G_0=1.7 (rate in erg s^-1 cm^-3)
 c
-      gammaha   = gammahacgs / coolunit
-
+      if (igammah .le. 1) then
+         gammaha = gammahacgs / coolunit
+      else
+c        igamma set to 2 or 3
+c        User to specify G_0, epsilon set to 0.05 or calculated directly.
+         gammaha = 1.d-24 / coolunit
+      endif
+c
+c     Heating of dust by interstellar radiation field.
+c     Eqn. B15 of Krumholz (2014)
+c     Don't normalize by coolunit since tdust calculation is done in CGS.
+c
+      gamma_isrfa = 3.9d-24 / mh / fgr
 c
 c     Write out cooling rate data
 c
