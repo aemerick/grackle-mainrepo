@@ -238,18 +238,28 @@ int update_UVbackground_rates(chemistry_data *my_chemistry,
      (LWbackground_model == 0 and LWbackground_intensity > 0.0). */
   if (my_chemistry->LWbackground_model > 0) {
 
+    const double RedshiftSqr = Redshift*Redshift;
+    double J21 = 0.0;
     /* Use Wise+2012 model for time-dependent UVB */
     if (my_chemistry->LWbackground_model == 1){
-      const double RedshiftSqr = Redshift*Redshift;
-      const double J21 = POW(10.0,
+      J21 = POW(10.0,
                        -2.356                               +
                         0.45620  * Redshift                 +
                        -0.02680  * RedshiftSqr              +
                         5.882e-4 * RedshiftSqr * Redshift   +
                        -5.056e-6 * RedshiftSqr * RedshiftSqr);
 
-      my_uvb_rates->k31 = 1.38e-12 * J21 * my_units->time_units;
+    } else if (my_chemistry->LWbackground_model == 2){
+      /* Polynomial fit to reference model in Qin+2020,
+         taken from Figure 5 */
+      J21 = POW(10.0,
+                             -6.8115e-05*RedshiftSqr*Redshift
+                             +2.3357e-03*RedshiftSqr
+                             -1.5068e-01*Redshift
+                             +1.6685e+00);
     }
+
+    my_uvb_rates->k31 = 1.38e-12 * J21 * my_units->time_units;
 
   } else {
     /* Set a constant k31 rate */
